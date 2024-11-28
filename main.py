@@ -17,7 +17,12 @@ mp_hands_detector = mp.solutions.hands
 mp_pose = mp.solutions.pose
 mp_selfie_segmentation = mp.solutions.selfie_segmentation
 
-
+hands = mp_hands_detector.Hands(
+    static_image_mode=False,
+    max_num_hands=1,
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5
+)
 face_mesh = mp_face_mesh.FaceMesh(
     max_num_faces=1,
     refine_landmarks=True,
@@ -77,7 +82,6 @@ def track_people(frame, landmarks):
         right_sh_x = int(right_sh.x * w)
         right_sh_y = int(right_sh.y * h)
 
-        print(nose_x, nose_y)
 
         offset = 100
         top = max(0, int(nose_y - 3 * offset))
@@ -140,21 +144,39 @@ face_blur_enabled = False
 
 while cap.isOpened():
     ret, frame = cap.read()
+    if not ret:
+        break
+    frame = np.fliplr(frame)
+    image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    hand_results = hands.process(image_rgb)
+    if hand_results.multi_hand_landmarks:
+        for hand_landmarks in hand_results.multi_hand_landmarks:
+            fingers_count = count_fingers(hand_landmarks)
+            if fingers_count == 1:
+                face_blur_enabled = not face_blur_enabled
+            elif fingers_count == 2:
+                background_blur_enabled = not background_blur_enabled
+            elif fingers_count == 3:
+                people_tracking_enabled = not people_tracking_enabled
+            elif fingers_count == 4:
+                face_detection_enabled = not face_detection_enabled
 
-    key = cv2.waitKey(1)
+    key = cv2.waitKey(0)
     if key == ord('1'):
         people_tracking_enabled = not face_tracking_enabled
     elif key == ord('2'):
         background_blur_enabled = not background_blur_enabled
     elif key == ord('3'):
         face_blur_enabled = not face_blur_enabled
-    elif key  == ord('4'):
+    elif key == ord('4'):
         face_detection_enabled = not face_detection_enabled
-
     if key == 13 or key == ord('q') or not ret:
         break
 
-    image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    display_text(frame, f"Face Blur: {face_blur_enabled}", (10, 30))
+    display_text(frame, f"BG Blur: {background_blur_enabled}", (10, 60))
+    display_text(frame, f"Tracking: {people_tracking_enabled}", (10, 90))
+    display_text(frame, f"Face Detect: {face_detection_enabled}", (10, 120))
 
     if face_blur_enabled:
         frame = face_blur(frame, segmentation.process(image_rgb))
@@ -166,11 +188,11 @@ while cap.isOpened():
         frame = track_people(frame, pose.process(image_rgb))
 
     if face_detection_enabled:
-        frame = detect_faces(frame, face_mesh.process(image_rgb))
+        detect_faces(frame, face_mesh.process(image_rgb))
 
-
-    frame = np.fliplr(frame)
-    cv2.imshow('TEST', frame)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+    cv2.imshow('video', frame)
 
 
 cap.release()
