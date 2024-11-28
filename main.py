@@ -29,6 +29,12 @@ face_mesh = mp_face_mesh.FaceMesh(
 segmentation = mp_selfie_segmentation.SelfieSegmentation(
     model_selection=1
 )
+pose = mp_pose.Pose(
+    static_image_mode=False,
+    model_complexity=1,
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5
+)
 
 
 
@@ -45,46 +51,127 @@ def detect_faces(frame, landmarks):
             pass
 
 
-def blur_background(frame, pose_landmarks):
-    if pose_landmarks is not None:
-        results = segmentation.process(image_rgb)
-        mask = results.segmentation_mask
+def blur_background(frame, landmarks):
+    if landmarks is not None:
+        mask = landmarks.segmentation_mask
         condition = mask > 0.5
         background = cv2.GaussianBlur(frame, (55, 55), 0)
         frame = np.where(condition[:, :, None], frame, background)
     return frame
 
+
+def track_people(frame, landmarks):
+    answer = frame
+    if landmarks.pose_landmarks is not None:
+        h, w, _ = frame.shape
+        nose = landmarks.pose_landmarks.landmark[mp_pose.PoseLandmark.NOSE]
+        right_sh = landmarks.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_SHOULDER]
+        left_sh = landmarks.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_SHOULDER]
+
+        nose_x = int(nose.x * w)
+        nose_y = int(nose.y * h)
+
+        left_sh_x = int(left_sh.x * w)
+        left_sh_y = int(left_sh.y * h)
+
+        right_sh_x = int(right_sh.x * w)
+        right_sh_y = int(right_sh.y * h)
+
+        print(nose_x, nose_y)
+
+        offset = 100
+        top = max(0, int(nose_y - 3 * offset))
+        bottom = min(h, int(max(left_sh_y, right_sh_y)))
+        left = max(0, int(min(left_sh_x, right_sh_x)) - offset)
+        right = min(w, int(max(left_sh_x, right_sh_x)) + offset)
+
+        h_len = bottom - top
+        x_len2 = int(h_len*1280/1440)
+        x_cen = int((left+right)/2)
+        left = max(x_cen - x_len2, 0)
+        right = min(x_cen + x_len2, w)
+
+
+
+        answer = frame.copy()[top:bottom, left:right]
+        answer = cv2.resize(answer, (1280, 720))
+
+    return answer
+
+def count_fingers(hand_landmarks):
+    tips = [4, 8, 12, 16, 20]
+    count = 0
+    for tip in tips:
+        if hand_landmarks.landmark[tip].y < hand_landmarks.landmark[tip - 2].y:
+            count += 1
+    return count
+
+def face_blur(frame, landmarks):
+    if landmarks is not None:
+        h, w, _ = frame.shape
+        mask = landmarks.segmentation_mask
+        condition = mask < 0.5
+        background = np.zeros_like(frame)
+        # background = cv2.GaussianBlur(frame, (55, 55), 0)
+        eyes = face_mesh.process(image_rgb)
+        if eyes.multi_face_landmarks is not None:
+            for face_landmarks in eyes.multi_face_landmarks:
+                for s, _ in mp_face_mesh.FACEMESH_LEFT_EYE:
+                    landmark = face_landmarks.landmark[s]
+                    x = int(landmark.x * w)
+                    y = int(landmark.y * h)
+                    cv2.circle(background, (x, y), 5, (255, 255, 255), -1)
+                for s, _ in mp_face_mesh.FACEMESH_RIGHT_EYE:
+                    landmark = face_landmarks.landmark[s]
+                    x = int(landmark.x * w)
+                    y = int(landmark.y * h)
+                    cv2.circle(background, (x, y), 5, (255, 255, 255), -1)
+
+        frame = np.where(condition[:, :, None], frame, background)
+    return frame
+
+
+
 face_tracking_enabled = False
 background_blur_enabled = False
 face_detection_enabled = False
+people_tracking_enabled = False
+face_blur_enabled = False
 
 while cap.isOpened():
     ret, frame = cap.read()
 
-    if cv2.waitKey(1) & 0xFF == 13 or cv2.waitKey(1) & 0xFF == ord('q') or not ret:
+    key = cv2.waitKey(1)
+    if key == ord('1'):
+        people_tracking_enabled = not face_tracking_enabled
+    elif key == ord('2'):
+        background_blur_enabled = not background_blur_enabled
+    elif key == ord('3'):
+        face_blur_enabled = not face_blur_enabled
+    elif key  == ord('4'):
+        face_detection_enabled = not face_detection_enabled
+
+    if key == 13 or key == ord('q') or not ret:
         break
 
-    # if face_tracking_enabled:
-    #     frame = track_face(frame, face_mesh.process(image_rgb))
+    image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+    if face_blur_enabled:
+        frame = face_blur(frame, segmentation.process(image_rgb))
 
     if background_blur_enabled:
         frame = blur_background(frame, segmentation.process(image_rgb))
 
-    if face_detection_enabled:
-        detect_faces(frame, face_mesh.process(image_rgb))
+    if people_tracking_enabled:
+        frame = track_people(frame, pose.process(image_rgb))
 
-    image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    if face_detection_enabled:
+        frame = detect_faces(frame, face_mesh.process(image_rgb))
+
 
     frame = np.fliplr(frame)
     cv2.imshow('TEST', frame)
 
-    key = cv2.waitKey(1)
-    if key == ord('1'):
-        face_tracking_enabled = not face_tracking_enabled
-    elif key == ord('2'):
-        background_blur_enabled = not background_blur_enabled
-    elif key == ord('3'):
-        face_detection_enabled = not face_detection_enabled
 
 cap.release()
 cv2.destroyAllWindows()
