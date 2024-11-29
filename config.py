@@ -1,0 +1,1 @@
+type_face_hide = 'blur' # 'blur' or 'black_screen'
