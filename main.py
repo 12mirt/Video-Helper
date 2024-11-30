@@ -2,11 +2,15 @@ import cv2
 import mediapipe as mp
 import numpy as np
 import time
+import pyvirtualcam
 from config import *
 
 def display_text(image, text, position):
+    overlay = image.copy()
+    cv2.rectangle(overlay, (position[0] - 5, position[1] - 22), (position[0] + 500, position[1]+7), (0, 0, 0), -1)
+    image = cv2.addWeighted(overlay, 0.5, image, 0.5, 0)
     cv2.putText(image, text, position, cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 2, 2)
-
+    return image
 
 cap = cv2.VideoCapture(0)
 
@@ -155,6 +159,7 @@ face_blur_enabled = False
 enhance_enabled = False
 use_hands = False
 change_background = False
+paused = False
 
 gesture_start_time = None
 current_gesture = None
@@ -174,6 +179,8 @@ while cap.isOpened():
             if fingers_count != current_gesture:
                 current_gesture = fingers_count
                 gesture_start_time = time.time()
+            elif fingers_count == 0:
+                gesture_start_time = None
             elif time.time() - gesture_start_time > gesture_hold_threshold:
                 if fingers_count == 1:
                     face_blur_enabled = not face_blur_enabled
@@ -205,17 +212,24 @@ while cap.isOpened():
         use_hands = not use_hands
     elif key == ord('9'):
         face_detection_enabled = not face_detection_enabled
+    if key == ord('p'):
+        paused = not paused
+    if paused:
+        continue
     if key == 13 or key == ord('q'):
         break
 
+    if face_blur_enabled or background_blur_enabled or change_background:
+        segmentation_result = segmentation.process(image_rgb)
+
     if face_blur_enabled:
-        frame = face_blur(frame, segmentation.process(image_rgb))
+        frame = face_blur(frame, segmentation_result)
 
     if change_background:
-        frame = replace_background(frame, segmentation.process(image_rgb))
+        frame = replace_background(frame, segmentation_result)
 
     if background_blur_enabled:
-        frame = blur_background(frame, segmentation.process(image_rgb))
+        frame = blur_background(frame, segmentation_result)
 
     if people_tracking_enabled:
         frame = track_people(frame, pose.process(image_rgb))
@@ -226,17 +240,20 @@ while cap.isOpened():
     if enhance_enabled:
         enhance_appearance(frame)
 
-    display_text(frame, f"Face Blur: {face_blur_enabled}", (10, 30))
-    display_text(frame, f"BG Blur: {background_blur_enabled}", (10, 60))
-    display_text(frame, f"Tracking: {people_tracking_enabled}", (10, 90))
-    display_text(frame, f"Face Detect: {face_detection_enabled}", (10, 120))
-    display_text(frame, f"Enhance Appearance: {enhance_enabled}", (10, 150))
+    frame = display_text(frame, f"Face Blur: {face_blur_enabled}", (10, 30))
+    frame = display_text(frame, f"BG Blur: {background_blur_enabled}", (10, 60))
+    frame = display_text(frame, f"Tracking: {people_tracking_enabled}", (10, 90))
+    frame = display_text(frame, f"Face Detect: {face_detection_enabled}", (10, 120))
+    frame = display_text(frame, f"Enhance Appearance: {enhance_enabled}", (10, 150))
 
     return_time = False
     if gesture_start_time is None:
         gesture_start_time = time.time()
         return_time = True
-    display_text(frame, f"Timer: {int(time.time() - gesture_start_time)}, Fingers_count:{fingers_count}", (10, 180))
+    if use_hands:
+        frame = display_text(frame, f"Timer: {int(time.time() - gesture_start_time)}, Fingers_count:{fingers_count}", (10, 180))
+    else:
+        frame = display_text(frame, f"Hand control is off", (10, 180))
     if return_time:
         gesture_start_time = None
 
