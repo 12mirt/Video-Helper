@@ -2,8 +2,7 @@ import cv2
 import mediapipe as mp
 import numpy as np
 import time
-import pyvirtualcam
-from config import *
+from myapp.static.config import *
 
 def display_text(image, text, position):
     overlay = image.copy()
@@ -12,7 +11,12 @@ def display_text(image, text, position):
     cv2.putText(image, text, position, cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 2, 2)
     return image
 
+
 cap = cv2.VideoCapture(0)
+while not cap.read()[0]:
+    pass
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
 
 
 mp_face_mesh = mp.solutions.face_mesh
@@ -165,101 +169,101 @@ gesture_start_time = None
 current_gesture = None
 gesture_hold_threshold = 3
 fingers_count = 0
+ret, frame = cap.read()
+if True:
+    while ret:
+        frame = np.fliplr(frame)
+        image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        hand_results = hands.process(image_rgb)
+        if hand_results.multi_hand_landmarks and use_hands:
+            for hand_landmarks in hand_results.multi_hand_landmarks:
+                fingers_count = count_fingers(hand_landmarks)
+                if fingers_count != current_gesture:
+                    current_gesture = fingers_count
+                    gesture_start_time = time.time()
+                elif fingers_count == 0:
+                    gesture_start_time = None
+                elif time.time() - gesture_start_time > gesture_hold_threshold:
+                    if fingers_count == 1:
+                        face_blur_enabled = not face_blur_enabled
+                    elif fingers_count == 2:
+                        background_blur_enabled = not background_blur_enabled
+                    elif fingers_count == 3:
+                        people_tracking_enabled = not people_tracking_enabled
+                    elif fingers_count == 4:
+                        change_background = not change_background
+                    elif fingers_count == 5:
+                        enhance_enabled = not enhance_enabled
+                    gesture_start_time = None
+                    current_gesture = None
+        else:
+            fingers_count = 0
 
-while cap.isOpened():
-    ret, frame = cap.read()
-    if not ret:
-        break
-    frame = np.fliplr(frame)
-    image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    hand_results = hands.process(image_rgb)
-    if hand_results.multi_hand_landmarks and use_hands:
-        for hand_landmarks in hand_results.multi_hand_landmarks:
-            fingers_count = count_fingers(hand_landmarks)
-            if fingers_count != current_gesture:
-                current_gesture = fingers_count
-                gesture_start_time = time.time()
-            elif fingers_count == 0:
-                gesture_start_time = None
-            elif time.time() - gesture_start_time > gesture_hold_threshold:
-                if fingers_count == 1:
-                    face_blur_enabled = not face_blur_enabled
-                elif fingers_count == 2:
-                    background_blur_enabled = not background_blur_enabled
-                elif fingers_count == 3:
-                    people_tracking_enabled = not people_tracking_enabled
-                elif fingers_count == 4:
-                    change_background = not change_background
-                elif fingers_count == 5:
-                    enhance_enabled = not enhance_enabled
-                gesture_start_time = None
-                current_gesture = None
-    else:
-        fingers_count = 0
+        key = cv2.waitKey(1)
+        if key == ord('1'):
+            face_blur_enabled = not face_blur_enabled
+        elif key == ord('2'):
+            background_blur_enabled = not background_blur_enabled
+        elif key == ord('3'):
+            people_tracking_enabled = not people_tracking_enabled
+        elif key == ord('4'):
+            change_background = not change_background
+        elif key == ord('5'):
+            enhance_enabled = not enhance_enabled
+        elif key == ord('6'):
+            use_hands = not use_hands
+        elif key == ord('9'):
+            face_detection_enabled = not face_detection_enabled
+        if key == ord('p'):
+            paused = not paused
+        if paused:
+            continue
+        if key == 13 or key == ord('q'):
+            break
 
-    key = cv2.waitKey(1)
-    if key == ord('1'):
-        face_blur_enabled = not face_blur_enabled
-    elif key == ord('2'):
-        background_blur_enabled = not background_blur_enabled
-    elif key == ord('3'):
-        people_tracking_enabled = not people_tracking_enabled
-    elif key == ord('4'):
-        change_background = not change_background
-    elif key == ord('5'):
-        enhance_enabled = not enhance_enabled
-    elif key == ord('6'):
-        use_hands = not use_hands
-    elif key == ord('9'):
-        face_detection_enabled = not face_detection_enabled
-    if key == ord('p'):
-        paused = not paused
-    if paused:
-        continue
-    if key == 13 or key == ord('q'):
-        break
+        if face_blur_enabled or background_blur_enabled or change_background:
+            segmentation_result = segmentation.process(image_rgb)
 
-    if face_blur_enabled or background_blur_enabled or change_background:
-        segmentation_result = segmentation.process(image_rgb)
+        if face_blur_enabled:
+            frame = face_blur(frame, segmentation_result)
 
-    if face_blur_enabled:
-        frame = face_blur(frame, segmentation_result)
+        if change_background:
+            frame = replace_background(frame, segmentation_result)
 
-    if change_background:
-        frame = replace_background(frame, segmentation_result)
+        if background_blur_enabled:
+            frame = blur_background(frame, segmentation_result)
 
-    if background_blur_enabled:
-        frame = blur_background(frame, segmentation_result)
+        if people_tracking_enabled:
+            frame = track_people(frame, pose.process(image_rgb))
 
-    if people_tracking_enabled:
-        frame = track_people(frame, pose.process(image_rgb))
+        if face_detection_enabled:
+            detect_faces(frame, face_mesh.process(image_rgb))
 
-    if face_detection_enabled:
-        detect_faces(frame, face_mesh.process(image_rgb))
+        if enhance_enabled:
+            frame = enhance_appearance(frame)
 
-    if enhance_enabled:
-        enhance_appearance(frame)
+        frame = display_text(frame, f"Keys:", (10, 30))
+        frame = display_text(frame, f" '1' Face Blur: {face_blur_enabled}", (10, 60))
+        frame = display_text(frame, f" '2' BG Blur: {background_blur_enabled}", (10, 90))
+        frame = display_text(frame, f" '3' Tracking: {people_tracking_enabled}", (10, 120))
+        frame = display_text(frame, f" '4' Face Detect: {face_detection_enabled}", (10, 150))
+        frame = display_text(frame, f" '5' Enhance Appearance: {enhance_enabled}", (10, 180))
 
-    frame = display_text(frame, f"Face Blur: {face_blur_enabled}", (10, 30))
-    frame = display_text(frame, f"BG Blur: {background_blur_enabled}", (10, 60))
-    frame = display_text(frame, f"Tracking: {people_tracking_enabled}", (10, 90))
-    frame = display_text(frame, f"Face Detect: {face_detection_enabled}", (10, 120))
-    frame = display_text(frame, f"Enhance Appearance: {enhance_enabled}", (10, 150))
+        return_time = False
+        if gesture_start_time is None:
+            gesture_start_time = 0
+        if use_hands:
+            frame = display_text(frame, f" '6' Timer: {int(time.time() - gesture_start_time)}, Fingers_count:{fingers_count}", (10, 210))
+        else:
+            frame = display_text(frame, f" '6' Hand control is off", (10, 210))
 
-    return_time = False
-    if gesture_start_time is None:
-        gesture_start_time = time.time()
-        return_time = True
-    if use_hands:
-        frame = display_text(frame, f"Timer: {int(time.time() - gesture_start_time)}, Fingers_count:{fingers_count}", (10, 180))
-    else:
-        frame = display_text(frame, f"Hand control is off", (10, 180))
-    if return_time:
-        gesture_start_time = None
+        answer = cv2.resize(frame, (1280, 720))
 
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
-    cv2.imshow('video', frame)
+        # cam.send(frame)
+        # cam.sleep_until_next_frame()
+
+        cv2.imshow('video', frame)
+        ret, frame = cap.read()
 
 
 cap.release()
