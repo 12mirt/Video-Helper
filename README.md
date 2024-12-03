@@ -36,20 +36,36 @@ pip install -r requirements.txt
 
 The project includes a folder named `requirements`, which contains all necessary configuration and dependency files:
 
-- **`requirements.txt`**: Lists the required Python packages for the project.
-- **Additional Resources**: Place any custom background images or configuration files here if needed.
+myapp/
+│
+├── static/              # Static files and resources
+│   ├── config.py        # Configuration file for global settings
+│   ├── example.png      # Example background image for replacement
+│
+├── main.py              # Main script for running the application
+├── .gitignore           # Git ignore file for excluding unnecessary files
+├── README.md            # Project documentation
+├── requirements.txt     # List of dependencies for the project
 
 ### Config File
 
 The project relies on a configuration file (`config.py`) to define certain global settings. Customize this file to adjust behavior such as default feature states or paths to resources (e.g., background images).
 
-### Run the Application
+### Installation and Setup
 
-Run the script in your terminal:
+Clone the repository and navigate to the project folder:
 
-```bash
+git clone <repository_url>
+cd myapp
+
+Install the required dependencies using requirements.txt:
+
+pip install -r requirements.txt
+
+Run the application:
+
 python main.py
-```
+
 
 ### Key Controls
 
