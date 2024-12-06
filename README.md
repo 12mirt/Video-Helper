@@ -66,6 +66,11 @@ Run the application:
 
 python main.py
 
+### Important
+Resolution Adjustment
+You can modify the video resolution by changing the resolution variable in the script. The default resolution is (1280, 720).
+Background Replacement
+The background can be replaced with a custom image by specifying the path in the replace_background function (default: 'static/example.png').
 
 ### Key Controls
 
@@ -84,6 +89,7 @@ python main.py
 ### Gesture-Based Controls
 
 When hand gesture control is enabled (`6`), you can use finger gestures to toggle features:
+Show your palm facing the camera for accurate detection.
 
 - **1 Finger**: Toggle face blur
 - **2 Fingers**: Toggle background blur

@@ -96,11 +96,11 @@ def track_people(frame, landmarks):
         right_sh_x = int(right_sh.x * w)
         right_sh_y = int(right_sh.y * h)
 
-        margin = 100
-        top = max(0, nose_y - 3 * margin)
+        margin = int((left_sh_y+right_sh_y)/8 + nose_y/4)
+        top = max(0, nose_y - margin)
         bottom = min(h, max(left_sh_y, right_sh_y))
-        left = max(0, min(left_sh_x, right_sh_x) - margin)
-        right = min(w, max(left_sh_x, right_sh_x) + margin)
+        left = max(0, min(left_sh_x, right_sh_x))
+        right = min(w, max(left_sh_x, right_sh_x))
 
         h_len = bottom - top
         x_len2 = int(h_len * 1280 / 1440)
@@ -127,7 +127,7 @@ def track_people(frame, landmarks):
 def count_fingers(hand_landmarks, result):
     tips = [8, 12, 16, 20]
     count = 0
-    if result.multi_handedness[0].classification[0].label == 'Right':
+    if result.multi_handedness[0].classification[0].label == 'Right' and hand_landmarks.landmark[4].x< hand_landmarks.landmark[17].x:
         palm_x = hand_landmarks.landmark[0].x
         palm_y = hand_landmarks.landmark[0].y
 
