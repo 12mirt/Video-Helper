@@ -67,9 +67,9 @@ Run the application:
 python main.py
 
 ### Important
-Resolution Adjustment
-You can modify the video resolution by changing the resolution variable in the script. The default resolution is (1280, 720).
-Background Replacement
+Resolution Adjustment 
+You can modify the video resolution by changing the resolution variable in the config. The default resolution is (1280, 720).
+Background Replacement 
 The background can be replaced with a custom image by specifying the path in the replace_background function (default: 'static/example.png').
 
 ### Key Controls
